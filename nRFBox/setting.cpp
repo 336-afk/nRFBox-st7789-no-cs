@@ -41,34 +41,27 @@ void configureNrf(RF24 &radio) {
   radio.setCRCLength(RF24_CRC_DISABLED);
 }
 
-void setupRadioA() {
-  configureNrf(RadioA);
-}
-
-void setupRadioB() {
-  configureNrf(RadioB);
-}
-
-void setupRadioC() {
-  configureNrf(RadioC);
-}
-
+void setupRadioA() { configureNrf(RadioA); }
+void setupRadioB() { configureNrf(RadioB); }
+void setupRadioC() { configureNrf(RadioC); }
 void initAllRadios() {
-  setupRadioA();
-  setupRadioB();
-  setupRadioC();
+  setupRadioA(); setupRadioB(); setupRadioC();
 }
 
+// 🔄 FUNGSI Str() - Konversi u8g2 → TFT_eSPI
 void Str(uint8_t x, uint8_t y, const uint8_t* asciiArray, size_t len) {
   char buf[64]; 
   for (size_t i = 0; i < len && i < sizeof(buf) - 1; i++) {
     buf[i] = (char)asciiArray[i];
   }
   buf[len] = '\0';
-
-  u8g2.drawStr(x, y, buf);
+  
+  // 🔄 TFT_eSPI: langsung print, nggak perlu drawStr
+  tft.setCursor(x, y);
+  tft.print(buf);
 }
 
+// 🔄 FUNGSI CenteredStr() - Konversi u8g2 → TFT_eSPI
 void CenteredStr(uint8_t screenWidth, uint8_t y, const uint8_t* asciiArray, size_t len, const uint8_t* font) {
   char buf[64];
   for (size_t i = 0; i < len && i < sizeof(buf) - 1; i++) {
@@ -76,32 +69,57 @@ void CenteredStr(uint8_t screenWidth, uint8_t y, const uint8_t* asciiArray, size
   }
   buf[len] = '\0';
 
-  u8g2.setFont((const uint8_t*)font);
-  int16_t w = u8g2.getUTF8Width(buf);
-  u8g2.setCursor((screenWidth - w) / 2, y);
-  u8g2.print(buf);
+  // 🔄 TFT_eSPI: setTextFont() pakai angka (1=GLCD, 2=Font2, 4=Font4, dll)
+  // font parameter diabaikan, pakai font default size 2
+  tft.setTextFont(2);
+  
+  // 🔄 Hitung width text untuk centering
+  int16_t x1, y1; uint16_t w, h;
+  tft.getTextBounds(buf, 0, 0, &x1, &y1, &w, &h);
+  
+  tft.setCursor((screenWidth - w) / 2, y);
+  tft.print(buf);
 }
 
+// 🔄 FUNGSI utils() - Konversi display
 void utils() {
-  u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_6x10_tf);
-  Str(7, 15, Line_A, sizeof(Line_A));
-  Str(12, 35, Line_B, sizeof(Line_B));
-  Str(7, 55, Line_C, sizeof(Line_C));
-  u8g2.sendBuffer();
+  // 🔄 TFT: langsung fillScreen, nggak perlu buffer
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextFont(2);  // Ganti u8g2_font_6x10_tf
+  
+  // 🔄 Str() sudah di-update, tinggal panggil
+  Str(7, 20, Line_A, sizeof(Line_A));   // Y adjusted for 240px height
+  Str(12, 50, Line_B, sizeof(Line_B));
+  Str(7, 80, Line_C, sizeof(Line_C));
+  
+  // ❌ HAPUS: u8g2.sendBuffer(); — TFT direct draw
 }
 
+// 🔄 FUNGSI conf() - Konversi display + bitmap
 void conf() {
-  u8g2.setBitmapMode(1);
-  u8g2.clearBuffer();
-  CenteredStr(128, 25, txt_n, sizeof(txt_n), u8g2_font_ncenB14_tr);
-  CenteredStr(106, 40, txt_c, sizeof(txt_c), u8g2_font_ncenB08_tr);
-  CenteredStr(128, 60, txt_v, sizeof(txt_v), u8g2_font_6x10_tf);
-  u8g2.sendBuffer();
+  // 🔄 TFT init sequence
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextFont(4);  // Ganti u8g2_font_ncenB14_tr
+  
+  CenteredStr(240, 40, txt_n, sizeof(txt_n), nullptr);  // screenWidth = 240
+  tft.setTextFont(2);
+  CenteredStr(240, 70, txt_c, sizeof(txt_c), nullptr);
+  CenteredStr(240, 100, txt_v, sizeof(txt_v), nullptr);
+  
+  // ❌ HAPUS: u8g2.sendBuffer();
   delay(3000);
-  u8g2.clearBuffer();
-  u8g2.drawXBMP(0, 0, 128, 64, cred); 
-  u8g2.sendBuffer();
+  
+  tft.fillScreen(TFT_BLACK);
+  
+  // 🔄 Bitmap: drawXBMP format sama, tapi warna perlu specify
+  // ⚠️ Pastikan bitmap di icon.h format MSB-first 1-bit
+  if (cred != nullptr) {
+    tft.drawXBitmap(0, 0, cred, 128, 64, TFT_WHITE, TFT_BLACK);
+  }
+  
+  // ❌ HAPUS: u8g2.sendBuffer();
   delay(250);
 }
 
@@ -117,43 +135,47 @@ bool buttonUpPressed = false;
 bool buttonDownPressed = false;
 bool buttonSelectPressed = false;
 
+// 🔄 FUNGSI updateFirmware() - Konversi display messages
 void updateFirmware() {
-  u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_6x10_tf);
-  u8g2.drawStr(0, 15, "Updating Firmware.");
-  u8g2.sendBuffer();
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextFont(2);
+  tft.setCursor(0, 20);
+  tft.print("Updating Firmware.");
+  // ❌ HAPUS: u8g2.sendBuffer();
 
-  u8g2.setFont(u8g2_font_5x8_tr);
+  tft.setTextFont(1);
   if (!SD.begin(SD_CS_PIN)) {
-    u8g2.drawStr(0, 30, "[ SD Init Failed ]");
-    u8g2.sendBuffer();
+    tft.setCursor(0, 45);
+    tft.print("[ SD Init Failed ]");
+    // ❌ HAPUS: sendBuffer
     delay(2000);
     return;
   }
 
   if (!SD.exists(FIRMWARE_FILE)) {
-    u8g2.drawStr(0, 30, "[ File Not Found ]");
-    u8g2.sendBuffer();
+    tft.setCursor(0, 45);
+    tft.print("[ File Not Found ]");
     delay(2000);
     return;
   }
 
   File firmware = SD.open(FIRMWARE_FILE);
   if (!firmware) {
-    u8g2.drawStr(0, 30, "[ Open Failed ]");
-    u8g2.sendBuffer();
+    tft.setCursor(0, 45);
+    tft.print("[ Open Failed ]");
     delay(2000);
     return;
   }
 
   if (firmware) {
-    u8g2.drawStr(0, 30, "[ Wait a Moment ]");
-    u8g2.sendBuffer();
+    tft.setCursor(0, 45);
+    tft.print("[ Wait a Moment ]");
   }
 
   if (!Update.begin(firmware.size())) {
-    u8g2.drawStr(0, 30, "[ Update Init Failed ]");
-    u8g2.sendBuffer();
+    tft.setCursor(0, 70);
+    tft.print("[ Update Init Failed ]");
     firmware.close();
     delay(2000);
     return;
@@ -161,19 +183,19 @@ void updateFirmware() {
 
   Update.writeStream(firmware);
   if (Update.end(true)) {
-    u8g2.drawStr(0, 45, "[ Update Success! ]");
-    u8g2.sendBuffer();
+    tft.setCursor(0, 70);
+    tft.print("[ Update Success! ]");
     delay(1000);
     ESP.restart();
   } else {
-    u8g2.drawStr(0, 45, "[ Update Failed ]");
-    u8g2.sendBuffer();
+    tft.setCursor(0, 70);
+    tft.print("[ Update Failed ]");
     delay(2000);
   }
-
   firmware.close();
 }
 
+// 🔄 FUNGSI toggleOption() - Brightness handling
 void toggleOption(int option) {
   if (option == 0) { 
     neoPixelActive = !neoPixelActive;
@@ -183,13 +205,18 @@ void toggleOption(int option) {
     Serial.println(neoPixelActive ? "Enabled" : "Disabled");
 
   } else if (option == 1) { 
-    uint8_t brightnessPercent = map(oledBrightness, 0, 255, 0, 100); 
+    // 🔄 Brightness: OLED contrast → TFT backlight PWM
+    uint8_t brightnessPercent = map(brightness, 0, 255, 0, 100); 
     brightnessPercent += 10; 
     if (brightnessPercent > 100) brightnessPercent = 0; 
-    oledBrightness = map(brightnessPercent, 0, 100, 0, 255); 
+    brightness = map(brightnessPercent, 0, 100, 0, 255); 
 
-    u8g2.setContrast(oledBrightness); 
-    EEPROM.write(EEPROM_ADDRESS_BRIGHTNESS, oledBrightness);
+    // 🔄 TFT backlight PWM (jika TFT_BL didefinisikan & pakai PWM)
+    #ifdef TFT_BL
+    analogWrite(TFT_BL, brightness);  // Perlu pinMode(TFT_BL, OUTPUT) di setup
+    #endif
+    
+    EEPROM.write(EEPROM_ADDRESS_BRIGHTNESS, brightness);
     EEPROM.commit();
 
     Serial.print("Brightness set to: ");
@@ -207,83 +234,106 @@ void handleButtons() {
       buttonUpPressed = true;
       currentOption = (currentOption - 1 + totalOptions) % totalOptions;
     }
-  } else {
-    buttonUpPressed = false;
-  }
+  } else { buttonUpPressed = false; }
 
   if (!digitalRead(BUTTON_DOWN_PIN)) {
     if (!buttonDownPressed) {
       buttonDownPressed = true;
       currentOption = (currentOption + 1) % totalOptions;
     }
-  } else {
-    buttonDownPressed = false;
-  }
+  } else { buttonDownPressed = false; }
 
   if (!digitalRead(BTN_PIN_RIGHT)) {
     if (!buttonSelectPressed) {
       buttonSelectPressed = true;
       toggleOption(currentOption);
     }
-  } else {
-    buttonSelectPressed = false;
-  }
+  } else { buttonSelectPressed = false; }
 }
 
+// 🔄 FUNGSI displayMenu() - Konversi FULL ke TFT 240x240
 void displayMenu() {
-  u8g2.clearBuffer();
+  // 🔄 TFT: langsung clear, nggak perlu buffer
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
 
-  u8g2.setFont(u8g2_font_6x10_tf);
-  u8g2.drawStr(0, 10, "Settings:");
+  // Header
+  tft.setTextFont(2);  // Ganti u8g2_font_6x10_tf
+  tft.setCursor(0, 15);
+  tft.print("Settings:");
+  tft.drawFastHLine(0, 30, 240, TFT_DARKGREY);  // Separator
 
-  u8g2.setFont(u8g2_font_5x8_tr);
+  // Menu items (scaled for 240px height)
+  tft.setTextFont(1);  // Ganti u8g2_font_5x8_tr
+  
+  // Option 0: NeoPixel
   if (currentOption == 0) {
-    u8g2.drawStr(0, 30, "> NeoPixel: ");
+    tft.setCursor(0, 50); tft.print("> ");
+    tft.setCursor(20, 50); tft.print("NeoPixel: ");
+    tft.setCursor(120, 50); tft.print(neoPixelActive ? "Enabled" : "Disabled");
+    tft.drawRect(0, 45, 240, 25, TFT_YELLOW);  // Highlight box
   } else {
-    u8g2.drawStr(0, 30, "  NeoPixel: ");
+    tft.setCursor(20, 50); tft.print("NeoPixel: ");
+    tft.setCursor(120, 50); tft.print(neoPixelActive ? "Enabled" : "Disabled");
   }
 
+  // Option 1: Brightness
   if (currentOption == 1) {
-    u8g2.drawStr(0, 45, "> Brightness: ");
+    tft.setCursor(0, 90); tft.print("> ");
+    tft.setCursor(20, 90); tft.print("Brightness: ");
+    uint8_t brightnessPercent = map(brightness, 0, 255, 0, 100);
+    tft.setCursor(140, 90); tft.print(brightnessPercent); tft.print("%");
+    tft.drawRect(0, 85, 240, 25, TFT_YELLOW);
   } else {
-    u8g2.drawStr(0, 45, "  Brightness: ");
+    tft.setCursor(20, 90); tft.print("Brightness: ");
+    uint8_t brightnessPercent = map(brightness, 0, 255, 0, 100);
+    tft.setCursor(140, 90); tft.print(brightnessPercent); tft.print("%");
   }
 
+  // Option 2: Update Firmware
   if (currentOption == 2) {
-    u8g2.drawStr(0, 60, "> Update Firmware");
+    tft.setCursor(0, 130); tft.print("> ");
+    tft.setCursor(20, 130); tft.print("Update Firmware");
+    tft.drawRect(0, 125, 240, 25, TFT_YELLOW);
   } else {
-    u8g2.drawStr(0, 60, "  Update Firmware");
+    tft.setCursor(20, 130); tft.print("Update Firmware");
   }
 
-  u8g2.setCursor(80, 30);
-  u8g2.print(neoPixelActive ? "Enabled" : "Disabled");
-
-  u8g2.setCursor(80, 45);
-  uint8_t brightnessPercent = map(oledBrightness, 0, 255, 0, 100);
-  u8g2.print(brightnessPercent);
-  u8g2.print("%");
-
-  u8g2.sendBuffer();
+  // Footer hint
+  tft.setTextFont(1);
+  tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+  tft.setCursor(10, 220);
+  tft.print("UP/DOWN: Navigate | RIGHT: Select");
+  
+  // ❌ HAPUS: u8g2.sendBuffer(); — TFT direct draw
 }
 
 void settingSetup() {
   Serial.begin(115200);
-
   EEPROM.begin(512);
 
   neoPixelActive = EEPROM.read(EEPROM_ADDRESS_NEOPIXEL);
-  oledBrightness = EEPROM.read(EEPROM_ADDRESS_BRIGHTNESS);
+  brightness = EEPROM.read(EEPROM_ADDRESS_BRIGHTNESS);  // 🔄 renamed from oledBrightness
   
-  if (oledBrightness > 255) oledBrightness = 128; 
-  u8g2.setContrast(oledBrightness);
+  if (brightness > 255) brightness = 128; 
+  
+  // 🔄 TFT backlight init (jika pakai PWM)
+  #ifdef TFT_BL
+  pinMode(TFT_BL, OUTPUT);
+  analogWrite(TFT_BL, brightness);
+  #endif
 
   pinMode(BUTTON_UP_PIN, INPUT_PULLUP);
   pinMode(BUTTON_DOWN_PIN, INPUT_PULLUP);
   pinMode(BTN_PIN_RIGHT, INPUT_PULLUP);
+  
+  // 🔄 Initial display
+  displayMenu();
 }
 
 void settingLoop() {
   handleButtons();
   displayMenu();
-  }
-} 
+}
+
+} // namespace Setting
